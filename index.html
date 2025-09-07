@@ -1,0 +1,479 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Invoice Data Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a1e;
+            background-image: radial-gradient(circle at top, #1a163a, #0c0a1e 60%);
+        }
+        .file-drop-zone {
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .file-drop-zone-active {
+            border-color: #6d28d9; /* violet-700 */
+            background-color: rgba(109, 40, 217, 0.1);
+        }
+        .loader {
+            border: 4px solid #374151; /* gray-700 */
+            border-top: 4px solid #8b5cf6; /* violet-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #334155; /* slate-700 */
+        }
+         .result-item:last-child {
+            border-bottom: none;
+        }
+        .btn-primary {
+            background-image: linear-gradient(to right, #8b5cf6, #6d28d9);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+        }
+         .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-secondary {
+            border: 1px solid #475569; /* slate-600 */
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+        .btn-secondary:hover {
+            background-color: #475569;
+            color: #f1f5f9; /* slate-100 */
+        }
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.3), 0 0 10px rgba(139, 92, 246, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.6), 0 0 30px rgba(139, 92, 246, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.3), 0 0 10px rgba(139, 92, 246, 0.2); }
+        }
+        .glowing-border {
+            animation: glow 4s ease-in-out infinite;
+        }
+    </style>
+    <!-- Chosen Palette: AI Dark Theme -->
+    <!-- Application Structure Plan: The application is designed as a single-view, task-oriented interface. The structure centers around a main interaction card, guiding the user through a linear flow: 1. Upload File -> 2. View Processing State -> 3. See Extracted Results -> 4. (Optional) Enhance with AI. This minimalist design was chosen to directly reflect the MVP's core function while showcasing powerful, optional AI features. The interactive elements (drag-and-drop, file input, results display, AI buttons) are all contained within this single view to create a seamless, self-contained experience. -->
+    <!-- Visualization & Content Choices: Report Info: MVP API for invoice extraction + Gemini API. -> Goal: Provide a simple UI to test the base extraction and then enhance it with generative AI. -> Presentation Method: An interactive file upload, a structured results display, and dynamically populated sections for AI-generated content (summary, category, line items table). -> Interaction: User uploads a file. After initial results, they can click buttons to trigger Gemini API calls for deeper analysis. -> Justification: This approach clearly separates the core service from the AI enhancements, allowing users to appreciate the value added by the LLM. It's an effective way to demonstrate a tiered or premium feature set. -> Library/Method: Vanilla JavaScript with Fetch API for all backend communication. No charting libraries needed. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="text-slate-300 flex flex-col items-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl mx-auto">
+        <nav class="flex justify-between items-center py-4 md:py-6">
+            <!-- Left side: Logo + Name -->
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-violet-600 rounded-full flex items-center justify-center">
+                    <svg class="w-4 h-4 text-violet-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.572L16.5 21.75l-.398-1.178a3.375 3.375 0 00-2.455-2.455L12.75 18l1.178-.398a3.375 3.375 0 002.455-2.455l.398-1.178.398 1.178a3.375 3.375 0 002.455 2.455l1.178.398-1.178.398a3.375 3.375 0 00-2.455 2.455z" />
+                    </svg>
+                </div>
+                <span class="text-xl font-bold text-slate-100">Automate Nest</span>
+            </div>
+            <!-- Right side: Button -->
+            <div>
+                <a href="#" class="px-4 py-2 rounded-md text-sm font-medium text-slate-200 btn-secondary">Schedule Demo</a>
+            </div>
+        </nav>
+        <div class="w-full max-w-2xl mx-auto mt-8 md:mt-16">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl md:text-5xl font-bold text-slate-100 tracking-tight">AI Agents for Finance & Accounting</h1>
+                <p class="text-slate-400 mt-3 text-lg">Automated Invoice Extractor</p>
+            </header>
+
+            <main class="bg-slate-900/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl shadow-black/20 p-6 md:p-8 glowing-border">
+                <!-- Upload Section -->
+                <div id="upload-section">
+                    <div id="file-drop-zone" class="border-2 border-dashed border-slate-700 rounded-lg p-8 text-center cursor-pointer bg-slate-800/50 hover:bg-slate-800/80">
+                        <input type="file" id="file-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
+                        <div class="flex flex-col items-center justify-center text-slate-400">
+                            <img src="https://placehold.co/150x150/0c0a1e/a78bfa?text=🤖" alt="AI Bot" class="rounded-full mb-6" onerror="this.onerror=null;this.src='https://placehold.co/150x150/0c0a1e/a78bfa?text=Error';">
+                            <p class="text-slate-300 font-medium">Hello! Please drop your invoice here to get started.</p>
+                            <p class="text-slate-500 text-sm mt-1">or click to browse</p>
+                            <p class="text-xs text-slate-600 mt-4">Supports: PDF, JPG, PNG (Max 10MB)</p>
+                        </div>
+                    </div>
+                     <div id="file-name-display" class="mt-4 text-center text-sm text-slate-400"></div>
+                </div>
+
+                <!-- Processing Section -->
+                <div id="processing-section" class="hidden text-center py-8">
+                    <div class="loader mx-auto"></div>
+                    <p class="mt-4 font-medium text-slate-300">Processing your invoice...</p>
+                    <p class="text-sm text-slate-500">Extracting text and finding the details.</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="results-section" class="hidden">
+                     <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold text-slate-100">Extraction Results</h2>
+                         <div class="flex items-center space-x-4">
+                            <a id="mail-us-button" href="mailto:sagnikdutt033@gmail.com?subject=Discrepancy in Invoice Extraction" class="px-4 py-2 rounded-md text-sm font-medium text-slate-300 btn-secondary">Report Issue</a>
+                            <button id="reset-button" class="px-4 py-2 rounded-md text-sm font-medium text-white btn-primary">Try Another</button>
+                        </div>
+                    </div>
+                    <div id="results-display" class="bg-slate-800/70 rounded-lg p-4">
+                        <!-- Results will be injected here -->
+                    </div>
+                     <div id="error-display" class="hidden mt-4 bg-red-900/50 border border-red-700/50 text-red-300 p-4 rounded-lg">
+                        <p class="font-bold">An Error Occurred</p>
+                        <p id="error-message" class="text-sm"></p>
+                    </div>
+
+                    <!-- Gemini AI Features Section -->
+                    <div id="ai-features-section" class="mt-6 border-t border-slate-700 pt-6">
+                        <div class="flex items-center space-x-4">
+                            <button id="ai-verify-button" class="flex-1 px-4 py-2 rounded-md text-sm font-medium text-white btn-primary">✨ Verify & Categorize</button>
+                            <button id="ai-items-button" class="flex-1 px-4 py-2 rounded-md text-sm font-medium text-white btn-primary">✨ Extract Line Items</button>
+                        </div>
+                        <div id="ai-results-loader" class="hidden text-center py-6">
+                            <div class="loader mx-auto"></div>
+                            <p class="mt-4 text-sm font-medium text-slate-400">AI is analyzing...</p>
+                        </div>
+                        <div id="ai-verify-results" class="hidden mt-4 bg-slate-800/70 rounded-lg p-4"></div>
+                        <div id="ai-items-results" class="hidden mt-4 bg-slate-800/70 rounded-lg p-4"></div>
+                         <div id="ai-error-display" class="hidden mt-4 bg-red-900/50 border border-red-700/50 text-red-300 p-4 rounded-lg">
+                            <p class="font-bold">Gemini AI Error</p>
+                            <p id="ai-error-message" class="text-sm"></p>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+            <footer class="text-center mt-8">
+                 <p class="text-xs text-slate-600">Created by Sagnik</p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const fileDropZone = document.getElementById('file-drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        const uploadSection = document.getElementById('upload-section');
+        const processingSection = document.getElementById('processing-section');
+        const resultsSection = document.getElementById('results-section');
+        const resultsDisplay = document.getElementById('results-display');
+        const errorDisplay = document.getElementById('error-display');
+        const errorMessage = document.getElementById('error-message');
+        const resetButton = document.getElementById('reset-button');
+
+        // --- Gemini AI Elements ---
+        const aiVerifyButton = document.getElementById('ai-verify-button');
+        const aiItemsButton = document.getElementById('ai-items-button');
+        const aiResultsLoader = document.getElementById('ai-results-loader');
+        const aiVerifyResults = document.getElementById('ai-verify-results');
+        const aiItemsResults = document.getElementById('ai-items-results');
+        const aiErrorDisplay = document.getElementById('ai-error-display');
+        const aiErrorMessage = document.getElementById('ai-error-message');
+        
+        // --- State ---
+        let fullInvoiceText = '';
+        let initialExtractionData = null;
+
+        // --- API Config ---
+        const API_URL = 'http://localhost:3000/upload'; // Your backend server
+        const GEMINI_API_KEY = ''; // IMPORTANT: Leave this empty. It will be handled by the environment.
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+
+
+        // --- Event Listeners ---
+        fileDropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+        });
+        fileDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileDropZone.classList.add('file-drop-zone-active');
+        });
+        fileDropZone.addEventListener('dragleave', () => fileDropZone.classList.remove('file-drop-zone-active'));
+        fileDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileDropZone.classList.remove('file-drop-zone-active');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        resetButton.addEventListener('click', resetUI);
+        aiVerifyButton.addEventListener('click', handleVerifyClick);
+        aiItemsButton.addEventListener('click', handleLineItemsClick);
+
+
+        // --- UI State Management ---
+        function showProcessingState() {
+            uploadSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            errorDisplay.classList.add('hidden');
+            processingSection.classList.remove('hidden');
+        }
+        function showResultsState() {
+            processingSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+        }
+        function resetUI() {
+            uploadSection.classList.remove('hidden');
+            processingSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            errorDisplay.classList.add('hidden');
+            fileInput.value = '';
+            fileNameDisplay.textContent = '';
+            resultsDisplay.innerHTML = '';
+            fullInvoiceText = '';
+            initialExtractionData = null;
+            resetAIUI();
+        }
+        function resetAIUI() {
+            aiVerifyResults.classList.add('hidden');
+            aiItemsResults.classList.add('hidden');
+            aiErrorDisplay.classList.add('hidden');
+            aiVerifyResults.innerHTML = '';
+            aiItemsResults.innerHTML = '';
+            aiVerifyButton.disabled = false;
+            aiItemsButton.disabled = false;
+        }
+
+
+        // --- Core Logic: File Upload & Initial Extraction ---
+        function handleFile(file) {
+             if (!file) return;
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+            const maxFileSize = 10 * 1024 * 1024;
+            if (!allowedTypes.includes(file.type)) {
+                displayError(`Invalid file type. Please upload a PDF, JPG, or PNG.`);
+                showResultsState();
+                resultsDisplay.innerHTML = '';
+                return;
+            }
+            if (file.size > maxFileSize) {
+                displayError(`File is too large. Maximum size is ${maxFileSize / 1024 / 1024}MB.`);
+                showResultsState();
+                resultsDisplay.innerHTML = '';
+                return;
+            }
+            fileNameDisplay.textContent = `Selected file: ${file.name}`;
+            uploadFile(file);
+        }
+
+        async function uploadFile(file) {
+            showProcessingState();
+            const formData = new FormData();
+            formData.append('invoice', file);
+            try {
+                const response = await fetch(API_URL, { method: 'POST', body: formData });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                // IMPORTANT: Assuming backend now returns `fullText` along with other fields
+                fullInvoiceText = data.fullText || 'Full text not provided by server.';
+                initialExtractionData = data;
+
+                displayResults(data);
+            } catch (error) {
+                console.error('Upload failed:', error);
+                let friendlyMessage = error.message;
+                if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                    friendlyMessage = 'Could not connect to the server. Please ensure the backend server is running on http://localhost:3000 and that CORS is configured.';
+                }
+                displayError(friendlyMessage);
+            } finally {
+                showResultsState();
+            }
+        }
+        
+        function displayResults(data) {
+            errorDisplay.classList.add('hidden');
+            resetAIUI();
+            resultsDisplay.innerHTML = `
+                ${createResultItem('Vendor', data.vendor)}
+                ${createResultItem('Invoice Number', data.invoiceNumber)}
+                ${createResultItem('Date', data.date)}
+                ${createResultItem('Total Amount', data.total ? `$${data.total}` : null)}
+            `;
+        }
+        function displayError(message) {
+            errorMessage.textContent = message;
+            resultsDisplay.innerHTML = '<p class="text-center text-slate-500">Extraction failed. Please try another file.</p>';
+            errorDisplay.classList.remove('hidden');
+        }
+         function createResultItem(label, value) {
+            const val = value || 'Not found';
+            const valueClass = value ? 'text-slate-100 font-medium' : 'text-slate-500 italic';
+            return `<div class="result-item"><span class="text-slate-400">${label}</span><span class="${valueClass}">${val}</span></div>`;
+        }
+
+
+        // --- Gemini AI Logic ---
+        async function callGeminiAPI(prompt, isJson = false) {
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+            };
+            if(isJson) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                }
+            }
+            
+            let attempts = 0;
+            const maxAttempts = 5;
+            const initialDelay = 1000;
+
+            while (attempts < maxAttempts) {
+                try {
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody?.error?.message}`);
+                    }
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (error) {
+                    attempts++;
+                    if (attempts >= maxAttempts) throw error;
+                    console.warn(`API call failed, attempt ${attempts}. Retrying in ${initialDelay * Math.pow(2, attempts-1)}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, initialDelay * Math.pow(2, attempts-1)));
+                }
+            }
+        }
+        
+        function displayAIError(message) {
+            aiErrorMessage.textContent = message;
+            aiErrorDisplay.classList.remove('hidden');
+        }
+
+        async function handleVerifyClick() {
+            if (!fullInvoiceText || !initialExtractionData) {
+                displayAIError('Initial data not available for AI verification.');
+                return;
+            }
+            aiVerifyButton.disabled = true;
+            aiItemsButton.disabled = true;
+            aiResultsLoader.classList.remove('hidden');
+            aiErrorDisplay.classList.add('hidden');
+            aiVerifyResults.classList.add('hidden');
+
+            const prompt = `
+                You are an expert accounting assistant. Analyze the following invoice text.
+                My basic system extracted this data: ${JSON.stringify(initialExtractionData)}.
+                Based on the full text, do the following:
+                1.  Briefly state if the extracted data seems correct.
+                2.  Provide a one-sentence summary of the invoice's purpose.
+                3.  Suggest a single, specific expense category (e.g., "Software Subscription", "Office Supplies", "Legal Services").
+                
+                Full invoice text:
+                ---
+                ${fullInvoiceText}
+                ---
+            `;
+            try {
+                const responseText = await callGeminiAPI(prompt);
+                if (!responseText) throw new Error("Received an empty response from the AI.");
+                aiVerifyResults.innerHTML = `<h3 class="text-lg font-semibold text-slate-200 mb-2">AI Analysis</h3><p class="text-slate-300 whitespace-pre-wrap">${responseText}</p>`;
+                aiVerifyResults.classList.remove('hidden');
+            } catch (error) {
+                console.error("Gemini Verification Error:", error);
+                displayAIError(error.message);
+            } finally {
+                aiResultsLoader.classList.add('hidden');
+                aiItemsButton.disabled = false;
+            }
+        }
+
+        async function handleLineItemsClick() {
+            if (!fullInvoiceText) {
+                displayAIError('Invoice text not available for line item extraction.');
+                return;
+            }
+            aiVerifyButton.disabled = true;
+            aiItemsButton.disabled = true;
+            aiResultsLoader.classList.remove('hidden');
+            aiErrorDisplay.classList.add('hidden');
+            aiItemsResults.classList.add('hidden');
+
+            const prompt = `
+                From the following invoice text, extract all line items. 
+                For each item, identify the 'description', 'quantity', 'unitPrice', and 'total'. 
+                Return the result as a valid JSON array of objects, where each object represents a line item.
+                If a value isn't found for a field, use null.
+                Example: [{"description": "Product A", "quantity": 2, "unitPrice": 10.00, "total": 20.00}]
+
+                Full invoice text:
+                ---
+                ${fullInvoiceText}
+                ---
+            `;
+
+            try {
+                const responseJsonText = await callGeminiAPI(prompt, true);
+                if (!responseJsonText) throw new Error("Received an empty response from the AI.");
+                
+                const lineItems = JSON.parse(responseJsonText);
+                
+                let tableHtml = `<h3 class="text-lg font-semibold text-slate-200 mb-2">Line Items</h3>
+                                 <div class="overflow-x-auto">
+                                 <table class="w-full text-sm text-left">
+                                    <thead class="text-xs text-slate-400 uppercase bg-slate-700/50">
+                                        <tr>
+                                            <th scope="col" class="px-4 py-3">Description</th>
+                                            <th scope="col" class="px-4 py-3 text-right">Quantity</th>
+                                            <th scope="col" class="px-4 py-3 text-right">Unit Price</th>
+                                            <th scope="col" class="px-4 py-3 text-right">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                
+                lineItems.forEach(item => {
+                    tableHtml += `<tr class="border-b border-slate-700">
+                                    <td class="px-4 py-3 font-medium text-slate-200">${item.description || 'N/A'}</td>
+                                    <td class="px-4 py-3 text-right">${item.quantity || 'N/A'}</td>
+                                    <td class="px-4 py-3 text-right">${item.unitPrice != null ? `$${parseFloat(item.unitPrice).toFixed(2)}` : 'N/A'}</td>
+                                    <td class="px-4 py-3 text-right font-bold">${item.total != null ? `$${parseFloat(item.total).toFixed(2)}` : 'N/A'}</td>
+                                  </tr>`;
+                });
+
+                tableHtml += '</tbody></table></div>';
+                aiItemsResults.innerHTML = tableHtml;
+                aiItemsResults.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Gemini Line Items Error:", error);
+                const errorMessage = error instanceof SyntaxError ? "AI returned invalid JSON." : error.message;
+                displayAIError(errorMessage);
+            } finally {
+                aiResultsLoader.classList.add('hidden');
+                aiVerifyButton.disabled = false;
+            }
+        }
+
+    </script>
+</body>
+</html>
